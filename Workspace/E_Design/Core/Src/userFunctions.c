@@ -61,7 +61,10 @@ void rqMeas(UART_HandleTypeDef huart, ADC_HandleTypeDef hadc){
 }
 
 void measure(ADC_HandleTypeDef hadc){
-	uint8_t cnt = 0;
+	uint16_t PKPos[20];
+	uint16_t maxADC = 0;
+	uint16_t minADC = 4096;
+	uint16_t cnt = 0;
 	float tot = 0;
 	float correctionFac = 1.08;
 	switch(measMode[0]){
@@ -112,24 +115,22 @@ void measure(ADC_HandleTypeDef hadc){
 				break;
 //AC Voltage amplitude and frequency updated after DEMO 2 using code from 22662790
 			case 'a'://Measure AC Voltage amplitude
-				uint16_t maxADC = 0;
-				uint16_t minADC = 4096;
+
 				for(uint32_t i = 0; i < ADC_MEAS-1; i++){
 					HAL_ADC_Start(&hadc);
 					HAL_ADC_PollForConversion(&hadc,500);
 					adc_Values[i] = HAL_ADC_GetValue(&hadc);
 					HAL_ADC_Stop(&hadc);
 					if(adc_Values[i] > maxADC) maxADC = adc_Values[i];
-					if(adc_Values[i] < minADC) min ADC = adc_Values[i];
+					if(adc_Values[i] < minADC) minADC = adc_Values[i];
 				}
 				float maxVoltage = ((maxADC*3.3)/4096)*1000 * correctionFac;
 				float minVoltage = ((minADC*3.3)/4096)*1000 * correctionFac;
-				uint16_t output = maxVoltage - minVoltage;
+				output = maxVoltage - minVoltage;
 				updateMeasVal(output);
 				break;
 			case 'f'://Measure AC Voltage frequency
-				uint16_t PKPos[20];
-				uint16_t cnt = 0;
+
 				for(uint32_t i = 0; i < ADC_MEAS-1; i++){
 					HAL_ADC_Start(&hadc);
 					HAL_ADC_PollForConversion(&hadc,500);
@@ -147,11 +148,11 @@ void measure(ADC_HandleTypeDef hadc){
 				}
 				uint16_t indexTotal = 0;
 				for(uint16_t i =0; i<19;i++){
-					indexTotal = cnt[i+1] - cnt[i];
+					indexTotal = indexTotal + (PKPos[i+1] - PKPos[i]);
 				}
 				float indexPeriod = indexTotal/40;
 				float freqCorrFac = 0.0085;
-				uint16_t output = indexPeriod*freqCorrFac;
+				output = indexPeriod*freqCorrFac;
 				updateMeasVal(output);
 				break;
 			}
@@ -176,10 +177,10 @@ void updateMeasVal(uint16_t value){
 }
 
 void setLEDs(void){
-	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_12,menuState);//LED1 -> active if in menu display state
-	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_15,measDispState);//LED2 -> active if in measurement display state
-	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_14,outDispState);//LED3 -> active if in the output display state
-	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_13, sigState);//LED4 -> active if the output is on
+	HAL_GPIO_WritePin(D2_GPIO_Port,D2_Pin,menuState);//LED2 -> active if in menu display state
+	HAL_GPIO_WritePin(D3_GPIO_Port,D3_Pin,measDispState);//LED3 -> active if in measurement display state
+	HAL_GPIO_WritePin(D4_GPIO_Port,D4_Pin,outDispState);//LED4 -> active if in the output display state
+	HAL_GPIO_WritePin(D5_GPIO_Port,D5_Pin, sigState);//LED5 -> active if the output is on
 }
 
 void updateMenuState(void){
@@ -195,3 +196,175 @@ void setMeasMode(void){
 	measMode[1] = rxMsg[3];
 
 }
+
+void initialiseLCD(void){
+	//uint8_t BF = 0;
+	uint8_t RS=0,RNW=0,DB4=0,DB5=0,DB6=0,DB7 = 0;
+	//Setup First bit message (same for the first 3 submits)
+	//RS	R/W	DB7	DB6	DB6	DB5	DB4
+	//0		0	0	0	0	1	1
+	DB5 = 1;
+	DB4 = 1;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	HAL_Delay(4.2);//wait atleast 4.2 ms
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	HAL_Delay(0.1);//wait atleast 100 us
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	DB4 = 0;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	DB6 = 1;
+	DB7 = 1;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	DB5 = 0;
+	DB6 = 0;
+	DB7 = 0;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	DB7 = 1;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	DB7 = 0;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	DB4 = 1;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	DB4 = 0;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+	DB5 = 1;
+	txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+}
+
+void txLCD(uint8_t RS, uint8_t RNW, uint8_t DB4, uint8_t DB5, uint8_t DB6, uint8_t DB7){
+	HAL_GPIO_WritePin(E_GPIO_Port,E_Pin, 1);
+	HAL_GPIO_WritePin(RS_GPIO_Port,RS_Pin, RS);
+	HAL_GPIO_WritePin(RNW_GPIO_Port,RNW_Pin, RNW);
+	HAL_GPIO_WritePin(DB4_GPIO_Port,DB4_Pin, DB4);
+	HAL_GPIO_WritePin(DB5_GPIO_Port,DB5_Pin, DB5);
+	HAL_GPIO_WritePin(DB6_GPIO_Port,DB6_Pin, DB6);
+	HAL_GPIO_WritePin(DB7_GPIO_Port,DB7_Pin, DB7);
+	HAL_GPIO_WritePin(E_GPIO_Port,E_Pin,0);
+	HAL_Delay(0.005);//wait at least 230ns
+	HAL_GPIO_WritePin(E_GPIO_Port,E_Pin,1);
+}
+
+void displayLCD(uint8_t msg[2]){
+
+	for(int i = 0;i<2;i++){
+		uint8_t RS=0,RNW=0,DB4=0,DB5=0,DB6=0,DB7 = 0;
+		switch(msg[i]){
+		case '0':
+			RS = 1;
+			DB5=1;
+			DB4 = 1;
+			txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+			DB5=0;
+			DB4=0;
+			txLCD(RS,RNW,DB4,DB5,DB6,DB7);
+			break;
+		case '1':
+
+			break;
+		case '2':
+
+			break;
+		case '3':
+
+			break;
+		case '4':
+
+			break;
+		case '5':
+
+			break;
+		case '6':
+
+			break;
+		case '7':
+
+			break;
+		case '8':
+
+			break;
+		case '9':
+
+			break;
+		case 'A':
+
+			break;
+		case 'B':
+
+			break;
+		case 'C':
+
+			break;
+		case 'D':
+
+			break;
+		case 'E':
+
+			break;
+		case 'F':
+
+			break;
+		case 'G':
+
+			break;
+		case 'H':
+
+			break;
+		case 'I':
+
+			break;
+		case 'J':
+
+			break;
+		case 'K':
+
+			break;
+		case 'L':
+
+			break;
+		case 'M':
+
+			break;
+		case 'N':
+
+			break;
+		case 'O':
+
+			break;
+		case 'P':
+
+			break;
+		case 'Q':
+
+			break;
+		case 'R':
+
+			break;
+		case 'S':
+
+			break;
+		case 'T':
+
+			break;
+		case 'U':
+
+			break;
+		case 'V':
+
+			break;
+		case 'W':
+
+			break;
+		case 'X':
+
+			break;
+		case 'Y':
+
+			break;
+		case 'Z':
+
+			break;
+		}
+	}
+}
+
